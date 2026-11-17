@@ -1,12 +1,14 @@
-// GLOWKEEPER, a best-game-01 entry (Node 22, standard library only): the game is this
+// LUMENFALL, a best-game-01 entry (Node 22, standard library only): the game is this
 // directory's game/ folder, plain static files a desktop browser loads offline
 // (game/index.html and its ES modules, no library and no network request), and the program
 // hands it in. It copies game/ and screenshots/ from beside this file to /output and writes
 // /output/dossier.json, the summary the judge reads, with the vendored make.fun library.
-// Glowkeeper is a top-down arena survival game: a lantern-wisp gathers embers to feed its
-// light, flares to burn back the shades, and must survive 8 waves until dawn breaks.
-// It has a title screen, HUD, pause, win and game-over screens, synthesised sound, and
-// 4 screenshots in screenshots/ (the first by name is the cover). Run it with main.ts.
+// Lumenfall is a twin-stick arena survival game: a lantern-wisp fires light-bolts at
+// seven kinds of shade, gathers star-gems to level up and choose blessings, flares and
+// dashes to survive, and faces a Gloom Herald boss on waves 4, 8 and 12 until dawn
+// breaks. It has a title screen, HUD, pause, level-up choices, win and game-over
+// screens, synthesised sound, and 4 screenshots in screenshots/ (the first by name is
+// the cover). Run it with main.ts.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
