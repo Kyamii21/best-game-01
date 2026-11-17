@@ -1,13 +1,15 @@
-// Sound, synthesised with WebAudio: no audio files, nothing to download. A small helper
-// builds tones (sine/triangle blips with a pitch glide) and filtered noise bursts; the game
-// calls the named effects. The context is created lazily on the first user gesture, and M
-// toggles mute. A quiet low drone hums underneath play, so the cavern never feels silent.
+// Sound, synthesised with WebAudio: no audio files, nothing to download. A small
+// helper builds tones (oscillator blips with pitch glides) and filtered noise bursts;
+// the game calls the named effects. The context is created lazily on the first user
+// gesture, and M toggles mute. A quiet low drone hums underneath play, and a slow
+// heartbeat pulse joins it on boss waves, so the cavern never feels silent.
 
 export function createAudio() {
   let context = null;
   let master = null;
   let muted = false;
   let drone = null;
+  let bossPulse = null;
 
   function ensure() {
     if (context) {
@@ -19,7 +21,7 @@ export function createAudio() {
       if (!AC) return false;
       context = new AC();
       master = context.createGain();
-      master.gain.value = muted ? 0 : 0.5;
+      master.gain.value = muted ? 0 : 0.45;
       master.connect(context.destination);
       return true;
     } catch {
@@ -27,7 +29,7 @@ export function createAudio() {
     }
   }
 
-  function tone({ freq = 440, to = null, type = 'sine', dur = 0.15, vol = 0.3, delay = 0 }) {
+  function tone({ freq = 440, to = null, type = 'sine', dur = 0.15, vol = 0.25, delay = 0 }) {
     if (!ensure() || muted) return;
     const t0 = context.currentTime + delay;
     const osc = context.createOscillator();
@@ -73,11 +75,11 @@ export function createAudio() {
     osc2.type = 'sine';
     osc2.frequency.value = 82.5;
     const gain = context.createGain();
-    gain.gain.value = 0.035;
+    gain.gain.value = 0.03;
     const lfo = context.createOscillator();
     lfo.frequency.value = 0.07;
     const lfoGain = context.createGain();
-    lfoGain.gain.value = 0.015;
+    lfoGain.gain.value = 0.012;
     lfo.connect(lfoGain);
     lfoGain.connect(gain.gain);
     osc.connect(gain);
@@ -91,68 +93,106 @@ export function createAudio() {
 
   function stopDrone() {
     if (!drone) return;
-    try {
-      drone.osc.stop();
-      drone.osc2.stop();
-      drone.lfo.stop();
-    } catch {
-      // Already stopped.
-    }
+    try { drone.osc.stop(); drone.osc2.stop(); drone.lfo.stop(); } catch { /* already stopped */ }
     drone = null;
+    stopBossPulse();
+  }
+
+  function startBossPulse() {
+    if (!ensure() || bossPulse) return;
+    const osc = context.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 48;
+    const gain = context.createGain();
+    gain.gain.value = 0.0;
+    const lfo = context.createOscillator();
+    lfo.frequency.value = 1.1;
+    const lfoGain = context.createGain();
+    lfoGain.gain.value = 0.06;
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start();
+    lfo.start();
+    bossPulse = { osc, lfo, gain };
+  }
+
+  function stopBossPulse() {
+    if (!bossPulse) return;
+    try { bossPulse.osc.stop(); bossPulse.lfo.stop(); } catch { /* already stopped */ }
+    bossPulse = null;
   }
 
   return {
-    /** Call on any user gesture so the context may start. */
-    unlock() {
-      ensure();
-    },
+    unlock() { ensure(); },
     toggleMute() {
       muted = !muted;
-      if (master) master.gain.value = muted ? 0 : 0.5;
+      if (master) master.gain.value = muted ? 0 : 0.45;
       return muted;
     },
-    get muted() {
-      return muted;
-    },
+    get muted() { return muted; },
     startDrone,
     stopDrone,
+    startBossPulse,
+    stopBossPulse,
+    shoot() {
+      tone({ freq: 880, to: 420, type: 'square', dur: 0.07, vol: 0.07 });
+    },
+    hitEnemy() {
+      tone({ freq: 300, to: 180, type: 'triangle', dur: 0.08, vol: 0.12 });
+    },
+    slay() {
+      noise({ dur: 0.22, vol: 0.22, freq: 1400 });
+      tone({ freq: 520, to: 780, type: 'triangle', dur: 0.14, vol: 0.14 });
+    },
     /** Pickup chime: climbs with the combo, so a chain sounds like a ladder. */
     ember(combo) {
-      const base = 520 * 2 ** ((Math.min(combo, 8) - 1) / 12);
-      tone({ freq: base, to: base * 1.5, type: 'triangle', dur: 0.16, vol: 0.22 });
-      tone({ freq: base * 2, type: 'sine', dur: 0.1, vol: 0.08, delay: 0.02 });
+      const base = 520 * 2 ** ((Math.min(combo, 10) - 1) / 12);
+      tone({ freq: base, to: base * 1.5, type: 'triangle', dur: 0.16, vol: 0.2 });
+      tone({ freq: base * 2, type: 'sine', dur: 0.1, vol: 0.07, delay: 0.02 });
+    },
+    gem() {
+      tone({ freq: 1180, to: 1560, type: 'sine', dur: 0.1, vol: 0.12 });
+    },
+    levelup() {
+      [523, 659, 784, 1047].forEach((freq, i) => {
+        tone({ freq, type: 'triangle', dur: 0.22, vol: 0.18, delay: i * 0.08 });
+      });
     },
     flare(slains) {
-      noise({ dur: 0.4, vol: 0.4, freq: 900 });
-      tone({ freq: 180, to: 60, type: 'sawtooth', dur: 0.35, vol: 0.18 });
-      if (slains > 0) tone({ freq: 660, to: 990, type: 'triangle', dur: 0.2, vol: 0.15, delay: 0.05 });
+      noise({ dur: 0.4, vol: 0.38, freq: 900 });
+      tone({ freq: 180, to: 60, type: 'sawtooth', dur: 0.35, vol: 0.16 });
+      if (slains > 0) tone({ freq: 660, to: 990, type: 'triangle', dur: 0.2, vol: 0.14, delay: 0.05 });
     },
     hit() {
-      noise({ dur: 0.3, vol: 0.35, freq: 500 });
-      tone({ freq: 140, to: 50, type: 'square', dur: 0.3, vol: 0.2 });
+      noise({ dur: 0.3, vol: 0.32, freq: 500 });
+      tone({ freq: 140, to: 50, type: 'square', dur: 0.3, vol: 0.18 });
     },
-    dash() {
-      noise({ dur: 0.12, vol: 0.14, freq: 2400 });
-    },
+    dash() { noise({ dur: 0.12, vol: 0.13, freq: 2400 }); },
     powerup() {
-      tone({ freq: 523, type: 'triangle', dur: 0.12, vol: 0.2 });
-      tone({ freq: 659, type: 'triangle', dur: 0.12, vol: 0.2, delay: 0.07 });
-      tone({ freq: 784, type: 'triangle', dur: 0.2, vol: 0.2, delay: 0.14 });
+      tone({ freq: 523, type: 'triangle', dur: 0.12, vol: 0.18 });
+      tone({ freq: 659, type: 'triangle', dur: 0.12, vol: 0.18, delay: 0.07 });
+      tone({ freq: 784, type: 'triangle', dur: 0.2, vol: 0.18, delay: 0.14 });
     },
     waveClear(wave) {
       const base = 392 + wave * 12;
-      tone({ freq: base, type: 'triangle', dur: 0.14, vol: 0.2 });
-      tone({ freq: base * 1.25, type: 'triangle', dur: 0.14, vol: 0.2, delay: 0.09 });
-      tone({ freq: base * 1.5, type: 'triangle', dur: 0.24, vol: 0.2, delay: 0.18 });
+      tone({ freq: base, type: 'triangle', dur: 0.14, vol: 0.18 });
+      tone({ freq: base * 1.25, type: 'triangle', dur: 0.14, vol: 0.18, delay: 0.09 });
+      tone({ freq: base * 1.5, type: 'triangle', dur: 0.24, vol: 0.18, delay: 0.18 });
+    },
+    boss() {
+      tone({ freq: 98, to: 49, type: 'sawtooth', dur: 0.9, vol: 0.25 });
+      noise({ dur: 0.7, vol: 0.2, freq: 300 });
     },
     win() {
-      [523, 659, 784, 1047, 1319].forEach((freq, i) => {
-        tone({ freq, type: 'triangle', dur: 0.5, vol: 0.2, delay: i * 0.12 });
+      [523, 659, 784, 1047, 1319, 1568].forEach((freq, i) => {
+        tone({ freq, type: 'triangle', dur: 0.5, vol: 0.18, delay: i * 0.12 });
       });
     },
     lose() {
       [392, 330, 262, 196].forEach((freq, i) => {
-        tone({ freq, type: 'sine', dur: 0.45, vol: 0.2, delay: i * 0.16 });
+        tone({ freq, type: 'sine', dur: 0.45, vol: 0.18, delay: i * 0.16 });
       });
     },
   };
